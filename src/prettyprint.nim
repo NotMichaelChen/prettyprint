@@ -20,22 +20,28 @@ proc newline(this: OutputBuffer) =
   this.data.add("\n")
   this.lastLineBreak = this.data.len
 
-type ParenType {. pure .} = enum
-  paren,
-  squareBracket,
+type ParenType {.pure.} = enum
+  paren
+  squareBracket
   curlyBracket
 
 # TODO consider using case-of to guarantee handling all cases
 func opening(parenType: ParenType): char =
-  const mapping = [ParenType.paren: '(', ParenType.squareBracket: '[', ParenType.curlyBracket: '{']
+  const mapping =
+    [ParenType.paren: '(', ParenType.squareBracket: '[', ParenType.curlyBracket: '{']
   mapping[parenType]
 
 func closing(parenType: ParenType): char =
-  const mapping = [ParenType.paren: ')', ParenType.squareBracket: ']', ParenType.curlyBracket: '}']
+  const mapping =
+    [ParenType.paren: ')', ParenType.squareBracket: ']', ParenType.curlyBracket: '}']
   mapping[parenType]
 
 func closingWithComma(parenType: ParenType): set[char] =
-  const mapping = [ParenType.paren: {',', ')'}, ParenType.squareBracket: {',', ']'}, ParenType.curlyBracket: {',', '}'}]
+  const mapping = [
+    ParenType.paren: {',', ')'},
+    ParenType.squareBracket: {',', ']'},
+    ParenType.curlyBracket: {',', '}'},
+  ]
   mapping[parenType]
 
 type Tree = object
@@ -44,7 +50,13 @@ type Tree = object
   children: seq[Tree]
   suffix: string
 
-proc init(_: typedesc[Tree], prefix: string, parenType: Option[ParenType] = none(ParenType), children: seq[Tree] = @[], suffix: string = ""): Tree =
+proc init(
+    _: typedesc[Tree],
+    prefix: string,
+    parenType: Option[ParenType] = none(ParenType),
+    children: seq[Tree] = @[],
+    suffix: string = "",
+): Tree =
   Tree(prefix: prefix, parenType: parenType, children: children, suffix: suffix)
 
 proc toString(tree: Tree): string =
@@ -53,7 +65,7 @@ proc toString(tree: Tree): string =
   else:
     let formattedChildren = tree.children.map((t) => t.toString).join(", ")
     fmt"{tree.prefix}{tree.parenType.get.opening}{formattedChildren}{tree.parenType.get.closing}"
-    
+
 proc lengthRemainsOf(tree: Tree, length: int): int =
   var leng = length
   leng -= tree.prefix.len
@@ -92,23 +104,26 @@ proc skipQuote(this: QuotedText) =
   proc skippedQuote(marker: char, escapeChars: bool): bool =
     if this.text.len == 0 or this.text[0] != marker:
       return false
-    this.text = this.text[1..^1]
+    this.text = this.text[1 ..^ 1]
 
     while this.text.len > 0 and this.text[0] != marker:
       if escapeChars and this.text[0] == '\\':
-        this.text = this.text[1..^1]
+        this.text = this.text[1 ..^ 1]
       if this.text.len > 0:
-        this.text = this.text[1..^1]
+        this.text = this.text[1 ..^ 1]
 
     if this.text.len > 0:
-      this.text = this.text[1..^1]
+      this.text = this.text[1 ..^ 1]
     return true
 
-  while (skippedQuote('"', true) or skippedQuote('\'', true) or skippedQuote('`', false)):
+  while (
+    skippedQuote('"', true) or skippedQuote('\'', true) or skippedQuote('`', false)
+  )
+  :
     discard
 
 proc popFront(this: QuotedText) =
-  this.text = this.text[1..^1]
+  this.text = this.text[1 ..^ 1]
   this.textBeforeSkip = this.text
   this.skipQuote()
 
@@ -131,8 +146,10 @@ proc parseSuffix(range: var QuotedText, tree: Tree): Tree =
   if not range.empty and range.front == ',':
     range.popFront
     result.suffix = ","
-  
-proc parse(textRange: var QuotedText, expectedClosers: set[char] = {','}): Option[Tree] =
+
+proc parse(
+    textRange: var QuotedText, expectedClosers: set[char] = {','}
+): Option[Tree] =
   let parenStart = textRange.findAmong({'(', '{', '['})
   let closer = textRange.findAmong(expectedClosers)
 
@@ -141,22 +158,31 @@ proc parse(textRange: var QuotedText, expectedClosers: set[char] = {','}): Optio
 
     textRange = closer.consumeQuote
 
-    return (if prefix.len == 0: none(Tree) else: some(textRange.parseSuffix(Tree.init(prefix))))
+    return (
+      if prefix.len == 0: none(Tree)
+      else: some(textRange.parseSuffix(Tree.init(prefix)))
+    )
 
   let prefix = textRange.textUntil(parenStart)
 
   if parenStart.empty:
     textRange = parenStart.consumeQuote
 
-    return (if prefix.len == 0: none(Tree) else: some(textRange.parseSuffix(Tree.init(prefix))))
+    return (
+      if prefix.len == 0: none(Tree)
+      else: some(textRange.parseSuffix(Tree.init(prefix)))
+    )
 
   let parenType =
-    case parenStart.front:
-    of '(': ParenType.paren
-    of '[': ParenType.squareBracket
-    of '{': ParenType.curlyBracket
-    else: raiseAssert(fmt"Invalid ParenType char: {parenStart.front}")
-
+    case parenStart.front
+    of '(':
+      ParenType.paren
+    of '[':
+      ParenType.squareBracket
+    of '{':
+      ParenType.curlyBracket
+    else:
+      raiseAssert(fmt"Invalid ParenType char: {parenStart.front}")
 
   textRange = parenStart
   textRange.popFront
@@ -174,7 +200,11 @@ proc parse(textRange: var QuotedText, expectedClosers: set[char] = {','}): Optio
 
       textRange.popFront
 
-      return some(textRange.parseSuffix(Tree(prefix: prefix, parenType: some(parenType), children: children)))
+      return some(
+        textRange.parseSuffix(
+          Tree(prefix: prefix, parenType: some(parenType), children: children)
+        )
+      )
 
     let child = textRange.parse(parenType.closingWithComma())
 
@@ -182,7 +212,6 @@ proc parse(textRange: var QuotedText, expectedClosers: set[char] = {','}): Optio
       return none(Tree)
 
     children.add(child.get)
-      
 
 proc parse(text: string): seq[Tree] =
   var textRange = QuotedText.init(text)
@@ -218,7 +247,12 @@ proc prettyprint(buffer: OutputBuffer, tree: Tree, width: int) =
   proc renderIndented(tree: Tree, level: int = 0) =
     let remainingWidth = width - buffer.currentLineLength
 
-    buffer.add(if level == 0: tree.prefix else: tree.prefix.strip(trailing = false))
+    buffer.add(
+      if level == 0:
+        tree.prefix
+      else:
+        tree.prefix.strip(trailing = false)
+    )
     if not tree.lengthExceeds(remainingWidth):
       renderSingleLine(tree)
       return
@@ -263,9 +297,6 @@ when isMainModule:
   if args.len == 0:
     processLines(stdin)
   else:
-    let files =  args.map((args) => open(args))
+    let files = args.map((args) => open(args))
     for file in files:
       processLines(file)
-  
-
-
